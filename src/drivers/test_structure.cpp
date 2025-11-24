@@ -1,5 +1,4 @@
 /// Test driver to verify class structure compiles
-/// Author: Sofia Goncalves
 
 #include "../project2_a.h"
 #include <iostream>

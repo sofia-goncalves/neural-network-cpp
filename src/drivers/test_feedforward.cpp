@@ -1,6 +1,5 @@
 /// Validation test for feed_forward implementation
 /// Uses known weights/biases and manually computed expected output
-/// Author: Sofia Goncalves
 
 #include "../project2_a.h"
 #include <iostream>

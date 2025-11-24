@@ -2,12 +2,11 @@
 #define PROJECT2_A_H
 
 /// Neural Network Implementation for Binary Classification
-/// Author: Sofia Goncalves
-/// Student ID: 11058869
 
 #include "project2_a_basics.h"
 #include <stdexcept>
 #include <iostream>
+#include <fstream>
 
 /// Forward declaration of NeuralNetworkLayer
 class NeuralNetworkLayer;
@@ -247,19 +246,145 @@ public:
   }
 
   /// Write parameters to disk
+  /// File format (matches provided test data):
+  /// For each layer:
+  ///   ActivationFunctionName
+  ///   n_inputs_to_layer
+  ///   n_neurons_in_layer
+  ///   neuron_index bias_value (for each neuron)
+  ///   neuron_index input_index weight_value (for each weight)
   void write_parameters_to_disk(const std::string& filename) const
   {
-    std::string error_msg =
-      "NeuralNetwork::write_parameters_to_disk() not yet implemented\n";
-    throw std::runtime_error(error_msg);
+    std::ofstream outfile(filename.c_str());
+    if (!outfile)
+    {
+      throw std::runtime_error("Cannot open file: " + filename);
+    }
+
+    unsigned n_layer = Layer_pt.size();
+
+    // Write parameters for each layer
+    for (unsigned l = 0; l < n_layer; l++)
+    {
+      const DoubleMatrix& W = Layer_pt[l]->weight();
+      const DoubleVector& b = Layer_pt[l]->bias();
+
+      // Write activation function name
+      outfile << Layer_pt[l]->activation_function_pt()->name() << std::endl;
+
+      // Write layer structure
+      outfile << Layer_pt[l]->n_input() << std::endl;
+      outfile << Layer_pt[l]->n_neuron() << std::endl;
+
+      // Write biases with indices
+      for (unsigned i = 0; i < b.n(); i++)
+      {
+        outfile << i << " " << b[i] << " " << std::endl;
+      }
+
+      // Write weights with indices
+      for (unsigned i = 0; i < W.n(); i++)
+      {
+        for (unsigned j = 0; j < W.m(); j++)
+        {
+          outfile << i << " " << j << " " << W(i,j) << " " << std::endl;
+        }
+      }
+    }
+
+    outfile.close();
   }
 
   /// Read parameters from disk
+  /// Reads file in provided format with sanity checks
+  /// Validates network structure matches before loading parameters
   void read_parameters_from_disk(const std::string& filename)
   {
-    std::string error_msg =
-      "NeuralNetwork::read_parameters_from_disk() not yet implemented\n";
-    throw std::runtime_error(error_msg);
+    std::ifstream infile(filename.c_str());
+    if (!infile)
+    {
+      throw std::runtime_error("Cannot open file: " + filename);
+    }
+
+    unsigned n_layer = Layer_pt.size();
+
+    // Read parameters for each layer
+    for (unsigned l = 0; l < n_layer; l++)
+    {
+      DoubleMatrix& W = Layer_pt[l]->weight();
+      DoubleVector& b = Layer_pt[l]->bias();
+
+      // Read and validate activation function name
+      std::string activation_name;
+      infile >> activation_name;
+      if (activation_name != Layer_pt[l]->activation_function_pt()->name())
+      {
+        throw std::runtime_error("Layer " + std::to_string(l) +
+                                 " activation function mismatch: expected " +
+                                 Layer_pt[l]->activation_function_pt()->name() +
+                                 ", got " + activation_name);
+      }
+
+      // Read and validate layer structure
+      unsigned n_input_file, n_neuron_file;
+      infile >> n_input_file >> n_neuron_file;
+
+      if (n_input_file != Layer_pt[l]->n_input())
+      {
+        throw std::runtime_error("Layer " + std::to_string(l) +
+                                 " n_input mismatch: expected " +
+                                 std::to_string(Layer_pt[l]->n_input()) +
+                                 ", got " + std::to_string(n_input_file));
+      }
+
+      if (n_neuron_file != Layer_pt[l]->n_neuron())
+      {
+        throw std::runtime_error("Layer " + std::to_string(l) +
+                                 " n_neuron mismatch: expected " +
+                                 std::to_string(Layer_pt[l]->n_neuron()) +
+                                 ", got " + std::to_string(n_neuron_file));
+      }
+
+      // Read biases with index validation
+      for (unsigned i = 0; i < n_neuron_file; i++)
+      {
+        unsigned idx;
+        double bias_value;
+        infile >> idx >> bias_value;
+
+        if (idx != i)
+        {
+          throw std::runtime_error("Layer " + std::to_string(l) +
+                                   " bias index mismatch at position " + std::to_string(i));
+        }
+
+        b[idx] = bias_value;
+      }
+
+      // Read weights with index validation
+      for (unsigned i = 0; i < n_neuron_file; i++)
+      {
+        for (unsigned j = 0; j < n_input_file; j++)
+        {
+          unsigned row_idx, col_idx;
+          double weight_value;
+          infile >> row_idx >> col_idx >> weight_value;
+
+          if (row_idx != i || col_idx != j)
+          {
+            throw std::runtime_error("Layer " + std::to_string(l) +
+                                     " weight index mismatch: expected (" +
+                                     std::to_string(i) + "," + std::to_string(j) +
+                                     "), got (" + std::to_string(row_idx) + "," +
+                                     std::to_string(col_idx) + ")");
+          }
+
+          W(row_idx, col_idx) = weight_value;
+        }
+      }
+    }
+
+    infile.close();
   }
 
   /// Train the network

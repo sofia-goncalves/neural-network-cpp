@@ -1,6 +1,5 @@
 /// Validation test for cost function implementation
 /// Uses known outputs and targets to verify cost calculation
-/// Author: Sofia Goncalves
 
 #include "../project2_a.h"
 #include <iostream>
