@@ -1,0 +1,37 @@
+# Build artifacts
+build/
+*.o
+*.exe
+
+# Output data (can be regenerated)
+data/output/**/*
+!data/output/**/.gitkeep
+
+# Generated plots
+plots/figures/*.png
+plots/figures/*.pdf
+plots/figures/*.eps
+
+# LaTeX auxiliary files
+report/*.aux
+report/*.log
+report/*.nav
+report/*.out
+report/*.snm
+report/*.toc
+report/*.synctex.gz
+
+# Python cache
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
