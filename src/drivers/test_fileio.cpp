@@ -53,7 +53,7 @@ int main()
   // Create second network with same structure
   NeuralNetwork network2(n_input, non_input_layer);
 
-  // Initialize with random values
+  // Initialise with random values
   network2.initialise_parameters(0.0, 1.0);
 
   DoubleVector output2_before;

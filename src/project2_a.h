@@ -8,6 +8,15 @@
 #include <iostream>
 #include <fstream>
 
+// Debug output control - comment out to disable debug messages
+// #define DEBUG
+
+#ifdef DEBUG
+#define DEBUG_PRINT(msg) std::cout << "[DEBUG] " << msg << std::endl
+#else
+#define DEBUG_PRINT(msg)
+#endif
+
 /// Forward declaration of NeuralNetworkLayer
 class NeuralNetworkLayer;
 
@@ -56,7 +65,7 @@ public:
       Z(n_neuron),
       A(n_neuron)
   {
-    // Weights and biases initialized to zero by default
+    // Weights and biases initialised to zero by default
     // Will be set properly by initialise_parameters() or read_parameters_from_disk()
   }
 
@@ -168,6 +177,7 @@ public:
     for (unsigned l = 0; l < n_layer; l++)
     {
       delete Layer_pt[l];
+      Layer_pt[l] = 0;
     }
   }
 
@@ -387,7 +397,292 @@ public:
     infile.close();
   }
 
-  /// Train the network
+private:
+  /// Compute gradients via finite-differencing for a single training point
+  /// Used for validation of back-propagation implementation
+  /// Returns gradients without updating parameters
+  void compute_gradients_finite_difference(
+    const DoubleVector& input,
+    const DoubleVector& target,
+    std::vector<DoubleMatrix>& grad_W,
+    std::vector<DoubleVector>& grad_b,
+    const double& epsilon = 1.0e-8)
+  {
+    unsigned n_layer = Layer_pt.size();
+
+    // Clear and initialise gradient storage
+    grad_W.clear();
+    grad_b.clear();
+
+    for (unsigned l = 0; l < n_layer; l++)
+    {
+      const DoubleMatrix& W = Layer_pt[l]->weight();
+      const DoubleVector& b = Layer_pt[l]->bias();
+
+      grad_W.push_back(DoubleMatrix(W.n(), W.m()));
+      grad_b.push_back(DoubleVector(b.n()));
+    }
+
+    // Compute cost at current parameters
+    double C0 = cost(input, target);
+
+    // Compute gradient of biases via finite-difference
+    for (unsigned l = 0; l < n_layer; l++)
+    {
+      DoubleVector& b = Layer_pt[l]->bias();
+
+      for (unsigned j = 0; j < b.n(); j++)
+      {
+        // Perturb b[l]_j by +epsilon
+        double original_value = b[j];
+        b[j] = original_value + epsilon;
+
+        // Compute perturbed cost
+        double C_plus = cost(input, target);
+
+        // Restore original value
+        b[j] = original_value;
+
+        // Finite-difference approximation: ∂C/∂b ≈ (C(b+ε) - C(b)) / ε
+        grad_b[l][j] = (C_plus - C0) / epsilon;
+      }
+    }
+
+    // Compute gradient of weights via finite-difference
+    for (unsigned l = 0; l < n_layer; l++)
+    {
+      DoubleMatrix& W = Layer_pt[l]->weight();
+
+      for (unsigned j = 0; j < W.n(); j++)
+      {
+        for (unsigned k = 0; k < W.m(); k++)
+        {
+          // Perturb w[l]_jk by +epsilon
+          double original_value = W(j, k);
+          W(j, k) = original_value + epsilon;
+
+          // Compute perturbed cost
+          double C_plus = cost(input, target);
+
+          // Restore original value
+          W(j, k) = original_value;
+
+          // Finite-difference approximation: ∂C/∂w ≈ (C(w+ε) - C(w)) / ε
+          grad_W[l](j, k) = (C_plus - C0) / epsilon;
+        }
+      }
+    }
+  }
+
+  /// Compute gradients via back-propagation for a single training point
+  /// Returns gradients without updating parameters (for validation)
+  void compute_gradients_backprop(
+    const DoubleVector& input,
+    const DoubleVector& target,
+    std::vector<DoubleMatrix>& grad_W,
+    std::vector<DoubleVector>& grad_b)
+  {
+    unsigned n_layer = Layer_pt.size();
+
+    // Step 1: Feed-forward to compute and store z[l] and a[l] for all layers
+    DoubleVector current_input = input;
+    for (unsigned l = 0; l < n_layer; l++)
+    {
+      DoubleVector layer_output;
+      Layer_pt[l]->feed_forward(current_input, layer_output);
+      current_input = layer_output;
+    }
+
+    // Storage for errors δ[l] for each layer
+    std::vector<DoubleVector> delta(n_layer);
+
+    // Step 2: Compute error for output layer (layer L)
+    // δ[L] = σ'(z[L]) ◦ (a[L] - y)
+    unsigned L = n_layer - 1;
+    const DoubleVector& z_L = Layer_pt[L]->z();
+    const DoubleVector& a_L = Layer_pt[L]->a();
+    unsigned n_output = a_L.n();
+
+    delta[L].resize(n_output);
+    for (unsigned j = 0; j < n_output; j++)
+    {
+      double sigma_prime = Layer_pt[L]->activation_function_pt()->dsigma(z_L[j]);
+      delta[L][j] = sigma_prime * (a_L[j] - target[j]);
+    }
+
+    // Step 3: Back-propagate errors through hidden layers
+    // δ[l] = σ'(z[l]) ◦ (W[l+1])^T δ[l+1]
+    for (int l = L - 1; l >= 0; l--)
+    {
+      const DoubleVector& z_l = Layer_pt[l]->z();
+      const DoubleMatrix& W_next = Layer_pt[l+1]->weight();
+      unsigned n_neuron = z_l.n();
+
+      delta[l].resize(n_neuron);
+
+      for (unsigned j = 0; j < n_neuron; j++)
+      {
+        // Compute (W[l+1])^T δ[l+1] for neuron j
+        // This is sum over k: W[l+1](k,j) * δ[l+1][k]
+        double sum = 0.0;
+        for (unsigned k = 0; k < delta[l+1].n(); k++)
+        {
+          sum += W_next(k, j) * delta[l+1][k];
+        }
+
+        double sigma_prime = Layer_pt[l]->activation_function_pt()->dsigma(z_l[j]);
+        delta[l][j] = sigma_prime * sum;
+      }
+    }
+
+    // Step 4: Compute gradients from errors
+    // ∂C/∂b[l]_j = δ[l]_j
+    // ∂C/∂w[l]_jk = δ[l]_j * a[l-1]_k
+
+    // Clear and initialise gradient storage
+    grad_W.clear();
+    grad_b.clear();
+
+    for (unsigned l = 0; l < n_layer; l++)
+    {
+      const DoubleMatrix& W = Layer_pt[l]->weight();
+      const DoubleVector& b = Layer_pt[l]->bias();
+
+      grad_W.push_back(DoubleMatrix(W.n(), W.m()));
+      grad_b.push_back(DoubleVector(b.n()));
+
+      // Get a[l-1] (output from previous layer, or input for first layer)
+      DoubleVector a_prev;
+      if (l == 0)
+      {
+        a_prev = input;
+      }
+      else
+      {
+        a_prev = Layer_pt[l-1]->a();
+      }
+
+      // Gradient of biases: ∂C/∂b[l]_j = δ[l]_j
+      for (unsigned j = 0; j < b.n(); j++)
+      {
+        grad_b[l][j] = delta[l][j];
+      }
+
+      // Gradient of weights: ∂C/∂w[l]_jk = δ[l]_j * a[l-1]_k
+      for (unsigned j = 0; j < W.n(); j++)
+      {
+        for (unsigned k = 0; k < W.m(); k++)
+        {
+          grad_W[l](j, k) = delta[l][j] * a_prev[k];
+        }
+      }
+    }
+  }
+
+  /// Compute gradients via back-propagation for a single training point
+  /// and update weights and biases
+  /// Implements Algorithm 1 from project description
+  void back_propagation_and_update(
+    const DoubleVector& input,
+    const DoubleVector& target,
+    const double& learning_rate)
+  {
+    unsigned n_layer = Layer_pt.size();
+
+    // Step 1: Feed-forward to compute and store z[l] and a[l] for all layers
+    DoubleVector current_input = input;
+    for (unsigned l = 0; l < n_layer; l++)
+    {
+      DoubleVector layer_output;
+      Layer_pt[l]->feed_forward(current_input, layer_output);
+      current_input = layer_output;
+    }
+
+    // Storage for errors δ[l] for each layer
+    std::vector<DoubleVector> delta(n_layer);
+
+    // Step 2: Compute error for output layer (layer L)
+    // δ[L] = σ'(z[L]) ◦ (a[L] - y)
+    unsigned L = n_layer - 1;
+    const DoubleVector& z_L = Layer_pt[L]->z();
+    const DoubleVector& a_L = Layer_pt[L]->a();
+    unsigned n_output = a_L.n();
+
+    delta[L].resize(n_output);
+    for (unsigned j = 0; j < n_output; j++)
+    {
+      double sigma_prime = Layer_pt[L]->activation_function_pt()->dsigma(z_L[j]);
+      delta[L][j] = sigma_prime * (a_L[j] - target[j]);
+    }
+
+    DEBUG_PRINT("Output layer error δ[" << L << "][0] = " << delta[L][0]);
+
+    // Step 3: Back-propagate errors through hidden layers
+    // δ[l] = σ'(z[l]) ◦ (W[l+1])^T δ[l+1]
+    for (int l = L - 1; l >= 0; l--)
+    {
+      const DoubleVector& z_l = Layer_pt[l]->z();
+      const DoubleMatrix& W_next = Layer_pt[l+1]->weight();
+      unsigned n_neuron = z_l.n();
+
+      delta[l].resize(n_neuron);
+
+      for (unsigned j = 0; j < n_neuron; j++)
+      {
+        // Compute (W[l+1])^T δ[l+1] for neuron j
+        // This is sum over k: W[l+1](k,j) * δ[l+1][k]
+        double sum = 0.0;
+        for (unsigned k = 0; k < delta[l+1].n(); k++)
+        {
+          sum += W_next(k, j) * delta[l+1][k];
+        }
+
+        double sigma_prime = Layer_pt[l]->activation_function_pt()->dsigma(z_l[j]);
+        delta[l][j] = sigma_prime * sum;
+      }
+
+      DEBUG_PRINT("Layer " << l << " error δ[" << l << "][0] = " << delta[l][0]);
+    }
+
+    // Step 4: Update weights and biases using gradients
+    // ∂C/∂b[l]_j = δ[l]_j
+    // ∂C/∂w[l]_jk = δ[l]_j * a[l-1]_k
+    for (unsigned l = 0; l < n_layer; l++)
+    {
+      DoubleMatrix& W = Layer_pt[l]->weight();
+      DoubleVector& b = Layer_pt[l]->bias();
+
+      // Get a[l-1] (output from previous layer, or input for first layer)
+      DoubleVector a_prev;
+      if (l == 0)
+      {
+        a_prev = input;
+      }
+      else
+      {
+        a_prev = Layer_pt[l-1]->a();
+      }
+
+      // Update biases: b[l]_j ← b[l]_j - η * δ[l]_j
+      for (unsigned j = 0; j < b.n(); j++)
+      {
+        b[j] -= learning_rate * delta[l][j];
+      }
+
+      // Update weights: w[l]_jk ← w[l]_jk - η * δ[l]_j * a[l-1]_k
+      for (unsigned j = 0; j < W.n(); j++)
+      {
+        for (unsigned k = 0; k < W.m(); k++)
+        {
+          W(j, k) -= learning_rate * delta[l][j] * a_prev[k];
+        }
+      }
+    }
+  }
+
+public:
+  /// Train the network using stochastic gradient descent with back-propagation
+  /// Implements Algorithm 2 from project description
   void train(
     const std::vector<std::pair<DoubleVector,DoubleVector>>& training_data,
     const double& learning_rate,
@@ -395,9 +690,79 @@ public:
     const unsigned& max_iter,
     const std::string& convergence_history_file_name="")
   {
-    std::string error_msg =
-      "NeuralNetwork::train() not yet implemented\n";
-    throw std::runtime_error(error_msg);
+    DEBUG_PRINT("Starting training: learning_rate=" << learning_rate
+                << ", tol=" << tol_training << ", max_iter=" << max_iter);
+
+    unsigned n_data = training_data.size();
+
+    // Open convergence history file if specified
+    std::ofstream history_file;
+    if (!convergence_history_file_name.empty())
+    {
+      history_file.open(convergence_history_file_name.c_str());
+      if (!history_file)
+      {
+        throw std::runtime_error("Cannot open convergence history file: " +
+                                 convergence_history_file_name);
+      }
+      history_file << "# Iteration  TotalCost" << std::endl;
+    }
+
+    // Training loop
+    unsigned iter = 0;
+    double current_cost = cost_for_training_data(training_data);
+
+    DEBUG_PRINT("Initial cost: " << current_cost);
+
+    while (iter < max_iter)
+    {
+      // Select random training data point
+      std::uniform_int_distribution<unsigned> uniform_dist(0, n_data - 1);
+      unsigned i = uniform_dist(RandomNumber::Random_number_generator);
+
+      const DoubleVector& input = training_data[i].first;
+      const DoubleVector& target = training_data[i].second;
+
+      DEBUG_PRINT("Iteration " << iter << ": selected data point " << i);
+
+      // Compute gradients by back-propagation and update parameters
+      back_propagation_and_update(input, target, learning_rate);
+
+      iter++;
+
+      // Check convergence every 1000 iterations
+      if (iter % 1000 == 0)
+      {
+        current_cost = cost_for_training_data(training_data);
+
+        DEBUG_PRINT("Iteration " << iter << ": cost = " << current_cost);
+
+        if (!convergence_history_file_name.empty())
+        {
+          history_file << iter << " " << current_cost << std::endl;
+        }
+
+        if (current_cost < tol_training)
+        {
+          std::cout << "Training converged at iteration " << iter
+                    << " with cost " << current_cost << std::endl;
+          if (history_file.is_open())
+          {
+            history_file.close();
+          }
+          return;
+        }
+      }
+    }
+
+    // Training did not converge
+    std::cout << "Training did not converge after " << max_iter
+              << " iterations. Final cost: " << current_cost << std::endl;
+
+    if (history_file.is_open())
+    {
+      history_file.close();
+    }
   }
 
   /// Initialise parameters with random values from normal distribution
@@ -429,6 +794,27 @@ public:
         b[i] = normal_dist(RandomNumber::Random_number_generator);
       }
     }
+  }
+
+  /// Public wrapper for finite-difference gradient computation (for testing)
+  void test_compute_gradients_finite_difference(
+    const DoubleVector& input,
+    const DoubleVector& target,
+    std::vector<DoubleMatrix>& grad_W,
+    std::vector<DoubleVector>& grad_b,
+    const double& epsilon = 1.0e-7)
+  {
+    compute_gradients_finite_difference(input, target, grad_W, grad_b, epsilon);
+  }
+
+  /// Public wrapper for back-propagation gradient computation (for testing)
+  void test_compute_gradients_backprop(
+    const DoubleVector& input,
+    const DoubleVector& target,
+    std::vector<DoubleMatrix>& grad_W,
+    std::vector<DoubleVector>& grad_b)
+  {
+    compute_gradients_backprop(input, target, grad_W, grad_b);
   }
 };
 

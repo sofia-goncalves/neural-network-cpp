@@ -1,7 +1,3 @@
-# Makefile for Neural Network Project (MATH49111 Project 2a)
-# Author: Sofia Goncalves
-# Student ID: 11058869
-
 # Compiler settings
 CXX = g++
 CXXFLAGS = -std=c++11 -Wall -Wextra
