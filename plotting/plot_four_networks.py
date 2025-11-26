@@ -63,6 +63,7 @@ def plot_four_networks_comparison():
 def plot_convergence_comparison():
     """
     Plot convergence history for all 4 networks on same axes
+    Uses scatter plot to handle fluctuations cleanly
     """
     fig, ax = plt.subplots(figsize=(10, 7))
 
@@ -75,20 +76,19 @@ def plot_convergence_comparison():
         iterations = data[:, 0]
         cost = data[:, 1]
 
-        # Plot
-        ax.semilogy(iterations, cost, linewidth=2, color=colors[network_id-1],
-                    label=f'Network {network_id}', alpha=0.8)
+        # Plot with dashed lines for cleaner appearance
+        ax.semilogy(iterations, cost, linestyle='--', linewidth=1.5,
+                    color=colors[network_id-1], label=f'Network {network_id}', alpha=0.7)
 
     # Add horizontal line for target tolerance
-    ax.axhline(y=1e-4, color='red', linestyle='--', linewidth=1.5,
-               label='Target tolerance (10⁻⁴)', alpha=0.7)
+    ax.axhline(y=1e-4, color='red', linestyle='-', linewidth=2,
+               label='Target tolerance (10⁻⁴)', alpha=0.8)
 
     # Labels and formatting
     ax.set_xlabel('Iteration', fontsize=12)
     ax.set_ylabel('Cost (log scale)', fontsize=12)
     ax.set_title('Convergence Comparison: 4 Networks', fontsize=14, fontweight='bold')
     ax.legend(fontsize=10)
-    ax.grid(True, alpha=0.3, which='both')
 
     # Save
     plt.tight_layout()

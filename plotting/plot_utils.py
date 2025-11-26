@@ -52,7 +52,7 @@ def prepare_contour_data(network_data):
 
     return X1, X2, Z
 
-def plot_training_data(ax, inputs, targets):
+def plot_training_data(ax, inputs, targets, alpha=None):
     """
     Plot training data points on given axes
 
@@ -64,16 +64,28 @@ def plot_training_data(ax, inputs, targets):
         Input data (N x 2)
     targets : ndarray
         Target labels (N,)
+    alpha : float, optional
+        Transparency level. If None, automatically determined based on number of points
     """
     mask_pos = targets > 0
     mask_neg = targets < 0
 
+    # Auto-determine alpha based on number of points if not specified
+    if alpha is None:
+        n_points = len(targets)
+        if n_points < 50:
+            alpha = 0.8  # Few points: high visibility
+        elif n_points < 200:
+            alpha = 0.5  # Moderate points
+        else:
+            alpha = 0.2  # Many points: low to avoid overwhelming
+
     ax.scatter(inputs[mask_pos, 0], inputs[mask_pos, 1],
                c='red', marker='o', s=100, label='Class +1',
-               edgecolors='black', linewidths=1.5, zorder=3)
+               edgecolors='black', linewidths=1.5, alpha=alpha, zorder=3)
     ax.scatter(inputs[mask_neg, 0], inputs[mask_neg, 1],
                c='blue', marker='x', s=100, label='Class -1',
-               linewidths=2, zorder=3)
+               linewidths=2, alpha=alpha, zorder=3)
 
 def plot_decision_boundary(ax, X1, X2, Z, **kwargs):
     """
