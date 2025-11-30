@@ -1,6 +1,6 @@
 # Compiler settings
 CXX = g++
-CXXFLAGS = -std=c++11 -Wall -Wextra
+CXXFLAGS = -std=c++11 -Wall -Wextra -Wno-unused-variable
 OPTFLAGS = -O3
 DEBUGFLAGS = -g -DRANGE_CHECKING
 LDFLAGS =
@@ -15,7 +15,7 @@ DATA_DIR = data
 HEADERS = $(SRC_DIR)/project2_a.h $(SRC_DIR)/project2_a_basics.h $(SRC_DIR)/dense_linear_algebra.h
 DRIVERS = $(wildcard $(DRIVER_DIR)/*.cpp)
 
-# Executables (automatically derived from driver files)
+# Executables (derived from driver files)
 EXECUTABLES = $(patsubst $(DRIVER_DIR)/%.cpp,$(BUILD_DIR)/%,$(DRIVERS))
 
 # Default target: build all executables with optimisation
@@ -34,29 +34,19 @@ $(BUILD_DIR)/%: $(DRIVER_DIR)/%.cpp $(HEADERS) | $(BUILD_DIR)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-# Individual targets for convenience
-simple_test: $(BUILD_DIR)/simple_test
-spiral_analysis: $(BUILD_DIR)/spiral_analysis
-timing_analysis: $(BUILD_DIR)/timing_analysis
-optimisation_test: $(BUILD_DIR)/optimisation_test
-
-# Run targets (examples)
-run_simple: $(BUILD_DIR)/simple_test
-	./$(BUILD_DIR)/simple_test
-
-run_spiral: $(BUILD_DIR)/spiral_analysis
-	./$(BUILD_DIR)/spiral_analysis
-
 # Clean build artifacts
 clean:
 	rm -f $(BUILD_DIR)/*
 	rm -f $(SRC_DIR)/*.o
 
-# Clean all generated data (careful!)
+# Clean all generated data
 clean_data:
 	rm -rf $(DATA_DIR)/output/trained_networks/*
 	rm -rf $(DATA_DIR)/output/convergence_logs/*
 	rm -rf $(DATA_DIR)/output/network_outputs/*
+	rm -rf $(DATA_DIR)/output/snapshots/*
+	rm -f $(DATA_DIR)/output/*.dat
+	rm -f $(DATA_DIR)/output/*.tex
 
 # Clean generated plots
 clean_plots:
@@ -74,15 +64,10 @@ help:
 	@echo "Targets:"
 	@echo "  all              Build all executables (optimised)"
 	@echo "  debug            Build with debugging symbols"
-	@echo "  simple_test      Build simple test driver"
-	@echo "  spiral_analysis  Build spiral analysis driver"
-	@echo "  timing_analysis  Build timing analysis driver"
-	@echo "  run_simple       Build and run simple test"
-	@echo "  run_spiral       Build and run spiral analysis"
 	@echo "  clean            Remove build artifacts"
 	@echo "  clean_data       Remove generated data"
 	@echo "  clean_plots      Remove generated plots"
 	@echo "  distclean        Full clean"
 	@echo "  help             Show this message"
 
-.PHONY: all debug clean clean_data clean_plots distclean help run_simple run_spiral
+.PHONY: all debug clean clean_data clean_plots distclean help

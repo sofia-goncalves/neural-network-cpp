@@ -56,7 +56,7 @@ int main()
 
   // Training parameters from project
   double learning_rate = 0.1;
-  double tol = 1.0e-4;
+  double tol = 1.0e-3;
   unsigned max_iter = 100000;
 
   std::cout << "Training parameters:" << std::endl;

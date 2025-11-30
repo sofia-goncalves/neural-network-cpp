@@ -11,6 +11,8 @@ data/output/**/*
 plots/figures/*.png
 plots/figures/*.pdf
 plots/figures/*.eps
+plots/figures/frames/*.png
+plots/figures/frames/*.gif
 
 # LaTeX auxiliary files
 report/*.aux

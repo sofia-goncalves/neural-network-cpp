@@ -42,6 +42,7 @@ int main()
 
   // Clean up
   delete activation_function_pt;
+  activation_function_pt = 0;
 
   return 0;
 }

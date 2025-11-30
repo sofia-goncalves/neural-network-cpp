@@ -123,10 +123,10 @@ def plot_network_grid_comparison():
 def plot_convergence_comparison():
     """
     Plot convergence history for all spiral networks
-    Automatically detects all available convergence logs
+    Line thickness varies dramatically by width for better readability
     """
-    # Scan for all available convergence logs
-    network_configs = []
+    # Scan for all available convergence logs and organize by depth and width
+    network_configs = {}  # {(depth, width): (name, label, conv_file)}
     for conv_file in sorted(config.CONVERGENCE_LOGS.glob("spiral_depth_*_width_*_convergence.dat")):
         # Extract depth and width from filename
         parts = conv_file.stem.split('_')
@@ -138,37 +138,53 @@ def plot_convergence_comparison():
         arch = f"(2," + ",".join([str(width)] * depth) + ",1)"
         label = f"D={depth}, W={width}: {arch}"
 
-        network_configs.append((name, label, conv_file))
+        network_configs[(depth, width)] = (name, label, conv_file)
 
     if not network_configs:
         print("No convergence logs found")
         return
 
-    # Use a color palette that cycles if we have many networks
-    colors = plt.cm.tab10(np.linspace(0, 1, min(10, len(network_configs))))
-    if len(network_configs) > 10:
-        colors = plt.cm.tab20(np.linspace(0, 1, len(network_configs)))
+    # Get unique depths and widths
+    depths = sorted(set(d for d, w in network_configs.keys()))
+    widths = sorted(set(w for d, w in network_configs.keys()))
+
+    # Color map: depth determines base color
+    depth_colors = {2: '#1f77b4', 3: '#2ca02c', 4: '#d62728'}  # blue, green, red
 
     fig, ax = plt.subplots(figsize=(12, 7))
 
-    for idx, (name, label, conv_file) in enumerate(network_configs):
+    for (depth, width), (name, label, conv_file) in sorted(network_configs.items()):
         data = np.loadtxt(conv_file)
         iterations = data[:, 0]
         cost = data[:, 1]
 
-        # Plot with dashed lines for cleaner appearance
-        ax.semilogy(iterations, cost, linestyle='--', linewidth=1.2,
-                    color=colors[idx], label=label, alpha=0.6)
+        # Apply moving average smoothing
+        window_size = max(1, len(cost) // 50)
+        if window_size > 1:
+            cost_smooth = np.convolve(cost, np.ones(window_size)/window_size, mode='valid')
+            iterations_smooth = iterations[window_size-1:]
+        else:
+            cost_smooth = cost
+            iterations_smooth = iterations
 
-    # Add horizontal line for target tolerance
-    ax.axhline(y=1e-3, color='red', linestyle='-', linewidth=2,
-               label='Target tolerance (10⁻³)', alpha=0.8)
+        # Color based on depth
+        base_color = depth_colors.get(depth, 'gray')
+
+        # Line thickness based on width - make differences STARK
+        # Width 4: thin (0.8), Width 8: medium (2.0), Width 16: thick (3.5)
+        width_linewidths = {4: 0.8, 8: 2.0, 16: 3.5}
+        linewidth = width_linewidths.get(width, 1.5)
+
+        # Plot
+        ax.semilogy(iterations_smooth, cost_smooth, linestyle='-', linewidth=linewidth,
+                    color=base_color, label=label, alpha=0.8)
 
     # Labels and formatting
     ax.set_xlabel('Iteration', fontsize=12)
     ax.set_ylabel('Cost (log scale)', fontsize=12)
     ax.set_title('Convergence Comparison: Spiral Networks', fontsize=14, fontweight='bold')
-    ax.legend(fontsize=8, loc='best')
+    ax.legend(fontsize=8, loc='best', ncol=2)
+    ax.grid(True, alpha=0.3)
 
     # Save
     plt.tight_layout()

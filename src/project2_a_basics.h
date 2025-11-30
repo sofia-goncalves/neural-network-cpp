@@ -64,6 +64,9 @@ public:
  /// Empty constructor
  ActivationFunction(){};
 
+ /// Virtual destructor (required for polymorphic base class)
+ virtual ~ActivationFunction(){};
+
  /// Name of the activation function; just some identifier so we can check
  /// if we've assigned the right one when reading in data for a trained
  /// network from a file. Makes sense to use the name of the class
