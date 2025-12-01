@@ -107,7 +107,7 @@ def generate_latex_table(stats, output_file=None):
 
     latex_lines = []
     latex_lines.append("% Robust statistical analysis table")
-    latex_lines.append("% Generated automatically by analyze_spiral_robust.py")
+    latex_lines.append("% Generated automatically by analyse_spiral_robust.py")
     latex_lines.append("\\begin{table}[h]")
     latex_lines.append("\\centering")
     latex_lines.append("\\small")

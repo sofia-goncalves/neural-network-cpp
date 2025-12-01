@@ -24,6 +24,8 @@ report/*.toc
 report/*.synctex.gz
 report/*.tex
 report/*.pdf
+report/*.fls
+report/*.fdb_latexmk
 
 # Python cache
 __pycache__/
