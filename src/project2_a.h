@@ -765,6 +765,191 @@ public:
     }
   }
 
+  /// Train the network using optimised stochastic gradient descent
+  /// This method implements the interlaced back-propagation algorithm
+  /// from Higham & Higham (2019), where weight/bias updates are interlaced with error back-propagation.
+  void train_optimised(
+    const std::vector<std::pair<DoubleVector,DoubleVector>>& training_data,
+    const double& learning_rate,
+    const double& tol_training,
+    const unsigned& max_iter,
+    const std::string& convergence_history_file_name="")
+  {
+    DEBUG_PRINT("Starting optimised training: learning_rate=" << learning_rate
+                << ", tol=" << tol_training << ", max_iter=" << max_iter);
+
+    unsigned n_data = training_data.size();
+    unsigned n_layer = Layer_pt.size();
+    unsigned L = n_layer - 1;
+
+    // Open convergence history file if specified
+    std::ofstream history_file;
+    if (!convergence_history_file_name.empty())
+    {
+      history_file.open(convergence_history_file_name.c_str());
+      if (!history_file)
+      {
+        throw std::runtime_error("Cannot open convergence history file: " +
+                                 convergence_history_file_name);
+      }
+      history_file << "# Iteration  TotalCost" << std::endl;
+    }
+
+    // Training loop
+    unsigned iter = 0;
+    double current_cost = cost_for_training_data(training_data);
+
+    DEBUG_PRINT("Initial cost: " << current_cost);
+
+    // Storage for current and next layer errors (only need 2 at a time)
+    DoubleVector delta_current;
+    DoubleVector delta_next;
+
+    while (iter < max_iter)
+    {
+      // Select random training data point
+      std::uniform_int_distribution<unsigned> uniform_dist(0, n_data - 1);
+      unsigned i = uniform_dist(RandomNumber::Random_number_generator);
+
+      const DoubleVector& input = training_data[i].first;
+      const DoubleVector& target = training_data[i].second;
+
+      DEBUG_PRINT("Iteration " << iter << ": selected data point " << i);
+
+      // Step 1: Feed-forward to compute and store z[l] and a[l] for all layers
+      DoubleVector current_input = input;
+      for (unsigned l = 0; l < n_layer; l++)
+      {
+        DoubleVector layer_output;
+        Layer_pt[l]->feed_forward(current_input, layer_output);
+        current_input = layer_output;
+      }
+
+      // Step 2: Compute error for output layer (layer L)
+      // δ[L] = σ'(z[L]) ◦ (a[L] - y)
+      const DoubleVector& z_L = Layer_pt[L]->z();
+      const DoubleVector& a_L = Layer_pt[L]->a();
+      unsigned n_output = a_L.n();
+
+      delta_current.resize(n_output);
+      for (unsigned j = 0; j < n_output; j++)
+      {
+        double sigma_prime = Layer_pt[L]->activation_function_pt()->dsigma(z_L[j]);
+        delta_current[j] = sigma_prime * (a_L[j] - target[j]);
+      }
+
+      DEBUG_PRINT("Output layer error δ[" << L << "][0] = " << delta_current[0]);
+
+      // Step 3: Interlaced backward pass - compute next delta, then update current layer
+      // Loop backwards from output layer to first hidden layer
+      for (int l = L; l >= 0; l--)
+      {
+        const DoubleMatrix& W = Layer_pt[l]->weight();
+        DoubleVector& b = Layer_pt[l]->bias();
+
+        // FIRST: Compute error for previous layer (before updating current weights!)
+        // δ[l-1] = σ'(z[l-1]) ◦ (W[l])^T δ[l]
+        // This must happen BEFORE we update W[l]
+        if (l > 0)
+        {
+          const DoubleVector& z_prev = Layer_pt[l-1]->z();
+          unsigned n_neuron_prev = z_prev.n();
+
+          delta_next.resize(n_neuron_prev);
+
+          for (unsigned j = 0; j < n_neuron_prev; j++)
+          {
+            // Compute (W[l])^T δ[l] for neuron j in layer l-1
+            // This is sum over k: W[l](k,j) * δ[l][k]
+            double sum = 0.0;
+            for (unsigned k = 0; k < delta_current.n(); k++)
+            {
+              sum += W(k, j) * delta_current[k];
+            }
+
+            double sigma_prime = Layer_pt[l-1]->activation_function_pt()->dsigma(z_prev[j]);
+            delta_next[j] = sigma_prime * sum;
+          }
+
+          DEBUG_PRINT("Layer " << (l-1) << " error δ[" << (l-1) << "][0] = " << delta_next[0]);
+        }
+
+        // THEN: Update current layer weights and biases
+        // Now we can safely modify W[l] and b[l]
+
+        // Get a[l-1] (output from previous layer, or input for first layer)
+        DoubleVector a_prev;
+        if (l == 0)
+        {
+          a_prev = input;
+        }
+        else
+        {
+          a_prev = Layer_pt[l-1]->a();
+        }
+
+        // Need non-const reference to update weights
+        DoubleMatrix& W_ref = Layer_pt[l]->weight();
+
+        // Update biases: b[l]_j ← b[l]_j - η * δ[l]_j
+        for (unsigned j = 0; j < b.n(); j++)
+        {
+          b[j] -= learning_rate * delta_current[j];
+        }
+
+        // Update weights: w[l]_jk ← w[l]_jk - η * δ[l]_j * a[l-1]_k
+        for (unsigned j = 0; j < W_ref.n(); j++)
+        {
+          for (unsigned k = 0; k < W_ref.m(); k++)
+          {
+            W_ref(j, k) -= learning_rate * delta_current[j] * a_prev[k];
+          }
+        }
+
+        // Swap delta for next iteration
+        if (l > 0)
+        {
+          delta_current = delta_next;
+        }
+      }
+
+      iter++;
+
+      // Check convergence every 1000 iterations
+      if (iter % 1000 == 0)
+      {
+        current_cost = cost_for_training_data(training_data);
+
+        DEBUG_PRINT("Iteration " << iter << ": cost = " << current_cost);
+
+        if (!convergence_history_file_name.empty())
+        {
+          history_file << iter << " " << current_cost << std::endl;
+        }
+
+        if (current_cost < tol_training)
+        {
+          std::cout << "Training converged at iteration " << iter
+                    << " with cost " << current_cost << std::endl;
+          if (history_file.is_open())
+          {
+            history_file.close();
+          }
+          return;
+        }
+      }
+    }
+
+    // Training did not converge
+    std::cout << "Training did not converge after " << max_iter
+              << " iterations. Final cost: " << current_cost << std::endl;
+
+    if (history_file.is_open())
+    {
+      history_file.close();
+    }
+  }
+
   /// Initialise parameters with random values from normal distribution
   void initialise_parameters(const double& mean, const double& std_dev)
   {

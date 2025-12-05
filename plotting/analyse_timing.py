@@ -227,11 +227,11 @@ def plot_scaling_analysis():
         ax.loglog([min_time, max_time], [min_time, max_time], 'k--',
                   linewidth=1.5, label='Perfect fit')
 
-        ax.set_xlabel('Measured time (s)', fontsize=11)
-        ax.set_ylabel('Predicted time (s)', fontsize=11)
+        ax.set_xlabel('Measured time (s)', fontsize=12)
+        ax.set_ylabel('Predicted time (s)', fontsize=12)
         ax.set_title(f'{name}\n$a = {a_exp:.2f}$, $b = {b_exp:.2f}$, $R^2 = {r2:.4f}$',
-                     fontsize=11)
-        ax.legend(fontsize=9)
+                     fontsize=12)
+        ax.legend(fontsize=12)
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
@@ -256,52 +256,74 @@ def plot_algorithm_comparison():
     time_fd = data[:, 4]
     time_bp = data[:, 5]
 
-    # Create figure with two subplots
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    # Create single plot (no subplots)
+    fig, ax = plt.subplots(1, 1, figsize=(10, 6))
 
-    # Plot 1: Absolute timings
-    ax = axes[0]
+    # Define colors for each algorithm
+    colors = {
+        'FF': '#2ca02c',  # green
+        'BP': '#1f77b4',  # blue
+        'FD': '#d62728'   # red
+    }
 
     # Group by N_layer for visualization
     unique_layers = np.unique(n_layer)
 
-    for n_lay in unique_layers:
+    # Plot each algorithm with consistent color
+    for i, n_lay in enumerate(unique_layers):
         mask = (n_layer == n_lay)
         neurons = n_neuron[mask]
 
-        ax.loglog(neurons, time_ff[mask], 'o-', label=f'FF, L={int(n_lay)}',
-                  markersize=5, alpha=0.7)
-        ax.loglog(neurons, time_bp[mask], 's-', label=f'BP, L={int(n_lay)}',
-                  markersize=5, alpha=0.7)
-        ax.loglog(neurons, time_fd[mask], '^-', label=f'FD, L={int(n_lay)}',
-                  markersize=5, alpha=0.7)
+        # Only add to legend on first iteration
+        ff_label = 'Feed-forward' if i == 0 else None
+        bp_label = 'Back-propagation' if i == 0 else None
+        fd_label = 'Finite-differencing' if i == 0 else None
 
-    ax.set_xlabel('$N_{\\text{neuron}}$', fontsize=12)
-    ax.set_ylabel('Time (s)', fontsize=12)
-    ax.set_title('Absolute Computation Time', fontsize=13)
-    ax.legend(fontsize=7, ncol=3, loc='upper left')
+        # Plot with dashed lines
+        line_ff, = ax.loglog(neurons, time_ff[mask], 'o--',
+                             color=colors['FF'], label=ff_label,
+                             markersize=5, alpha=0.7, linewidth=1.5)
+        line_bp, = ax.loglog(neurons, time_bp[mask], 's--',
+                             color=colors['BP'], label=bp_label,
+                             markersize=5, alpha=0.7, linewidth=1.5)
+        line_fd, = ax.loglog(neurons, time_fd[mask], '^--',
+                             color=colors['FD'], label=fd_label,
+                             markersize=5, alpha=0.7, linewidth=1.5)
+
+        # Only label N_l = 2 and N_l = 6 to avoid clutter
+        if n_lay in [2, 6]:
+            max_neuron_idx = np.argmax(neurons)
+
+            # Get the y-values at the rightmost point for each algorithm
+            y_ff = time_ff[mask][max_neuron_idx]
+            y_bp = time_bp[mask][max_neuron_idx]
+            y_fd = time_fd[mask][max_neuron_idx]
+
+            # Place labels
+            ax.text(neurons[max_neuron_idx] * 1.08, y_ff,
+                    f'$N_l$={int(n_lay)}', fontsize=11, color=colors['FF'],
+                    verticalalignment='center', fontweight='bold')
+            ax.text(neurons[max_neuron_idx] * 1.08, y_bp,
+                    f'$N_l$={int(n_lay)}', fontsize=11, color=colors['BP'],
+                    verticalalignment='center', fontweight='bold')
+            ax.text(neurons[max_neuron_idx] * 1.08, y_fd,
+                    f'$N_l$={int(n_lay)}', fontsize=11, color=colors['FD'],
+                    verticalalignment='center', fontweight='bold')
+
+    ax.set_xlabel('$N_{\\text{neuron}}$ (neurons per layer)', fontsize=12)
+    ax.set_ylabel('Computation Time (seconds)', fontsize=12)
+    ax.set_title('Algorithm Comparison: Computation Time vs Network Size', fontsize=14)
+    ax.legend(fontsize=12, loc='upper left')
     ax.grid(True, alpha=0.3)
 
-    # Plot 2: Ratios (FD/BP and BP/FF)
-    ax = axes[1]
+    # Extend x-axis to the right for label space
+    xlim = ax.get_xlim()
+    ax.set_xlim(xlim[0], xlim[1] * 1.15)
 
-    ratio_fd_to_bp = time_fd / time_bp
-    ratio_bp_to_ff = time_bp / time_ff
-
-    for n_lay in unique_layers:
-        mask = (n_layer == n_lay)
-        neurons = n_neuron[mask]
-
-        ax.semilogy(neurons, ratio_fd_to_bp[mask], 'o-',
-                    label=f'FD/BP, L={int(n_lay)}', markersize=5, alpha=0.7)
-        ax.semilogy(neurons, ratio_bp_to_ff[mask], 's-',
-                    label=f'BP/FF, L={int(n_lay)}', markersize=5, alpha=0.7)
-
-    ax.set_xlabel('$N_{\\text{neuron}}$', fontsize=12)
-    ax.set_ylabel('Time ratio', fontsize=12)
-    ax.set_title('Algorithm Efficiency Comparison', fontsize=13)
-    ax.legend(fontsize=8, ncol=2)
-    ax.grid(True, alpha=0.3)
+    # Add note about L
+    ax.text(0.98, 0.02, '$N_l = N_{\\text{layer}}$ (number of hidden layers)',
+            transform=ax.transAxes, fontsize=12, verticalalignment='bottom',
+            horizontalalignment='right', style='italic', color='black')
 
     plt.tight_layout()
 

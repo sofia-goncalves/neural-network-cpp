@@ -27,6 +27,9 @@ report/*.pdf
 report/*.fls
 report/*.fdb_latexmk
 
+docs/html/
+docs/*.png
+
 # Python cache
 __pycache__/
 *.pyc

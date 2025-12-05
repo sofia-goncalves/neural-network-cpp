@@ -8,6 +8,9 @@ import matplotlib.pyplot as plt
 import sys
 from pathlib import Path
 
+# Update global font size settings
+plt.rcParams.update({'font.size': 16})
+
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import config
@@ -95,7 +98,7 @@ def plot_network_grid_comparison():
                 # Network not trained for this combination
                 ax.text(0.5, 0.5, f'Not trained:\nD={depth}, W={width}',
                        ha='center', va='center', transform=ax.transAxes,
-                       fontsize=10, color='gray')
+                       fontsize=20, color='gray')
                 ax.set_xlim(0, 1)
                 ax.set_ylim(0, 1)
                 ax.set_xticks([])
@@ -103,16 +106,12 @@ def plot_network_grid_comparison():
 
     # Add row and column labels
     for row_idx, depth in enumerate(depths):
-        axes[row_idx, 0].set_ylabel(f'Depth {depth}', fontsize=12, fontweight='bold')
+        axes[row_idx, 0].set_ylabel(f'Depth {depth}', fontsize=20, fontweight='bold')
 
     for col_idx, width in enumerate(widths):
         axes[0, col_idx].set_title(f'Width {width}\n' + axes[0, col_idx].get_title(),
-                                   fontsize=11, fontweight='bold')
-
-    # Overall title
-    # fig.suptitle('Network Architecture Comparison Grid',
-    #              fontsize=16, fontweight='bold', y=0.995)
-
+                                   fontsize=20, fontweight='bold')
+        
     # Save
     plt.tight_layout(rect=[0, 0, 1, 0.99])
     save_path = config.FIGURES_DIR / "spiral_architecture_grid.png"
@@ -136,7 +135,7 @@ def plot_convergence_comparison():
         name = f"depth_{depth}_width_{width}"
         # Generate architecture string
         arch = f"(2," + ",".join([str(width)] * depth) + ",1)"
-        label = f"D={depth}, W={width}: {arch}"
+        label = f"D={depth}, W={width}"
 
         network_configs[(depth, width)] = (name, label, conv_file)
 
@@ -172,18 +171,20 @@ def plot_convergence_comparison():
 
         # Line thickness based on width - make differences STARK
         # Width 4: thin (0.8), Width 8: medium (2.0), Width 16: thick (3.5)
-        width_linewidths = {4: 0.8, 8: 2.0, 16: 3.5}
+        width_linewidths = {4: 0.8, 8: 1.5, 16: 4.5}
+        width_alpha = {4: 1.0, 8: 0.8, 16: 0.3}
         linewidth = width_linewidths.get(width, 1.5)
+        alpha = width_alpha.get(width, 0.8)
 
         # Plot
         ax.semilogy(iterations_smooth, cost_smooth, linestyle='-', linewidth=linewidth,
-                    color=base_color, label=label, alpha=0.8)
+                    color=base_color, label=label, alpha=alpha)
 
     # Labels and formatting
-    ax.set_xlabel('Iteration', fontsize=12)
-    ax.set_ylabel('Cost (log scale)', fontsize=12)
-    ax.set_title('Convergence Comparison: Spiral Networks', fontsize=14, fontweight='bold')
-    ax.legend(fontsize=8, loc='best', ncol=2)
+    ax.set_xlabel('Iteration', fontsize=16)
+    ax.set_ylabel('Cost (log scale)', fontsize=16)
+    # ax.set_title('Convergence Comparison: Spiral Networks', fontsize=16, fontweight='bold')
+    ax.legend(fontsize=14, loc='best', ncol=1)
     ax.grid(True, alpha=0.3)
 
     # Save
