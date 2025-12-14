@@ -208,7 +208,7 @@ def plot_scaling_analysis():
     algorithm_names = ['Feed-forward', 'Finite-differencing', 'Back-propagation']
     algorithm_indices = [3, 4, 5]
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+    fig, axes = plt.subplots(1, 3, figsize=(14, 6))
 
     for ax, name, idx in zip(axes, algorithm_names, algorithm_indices):
         time = data[:, idx]
@@ -227,11 +227,11 @@ def plot_scaling_analysis():
         ax.loglog([min_time, max_time], [min_time, max_time], 'k--',
                   linewidth=1.5, label='Perfect fit')
 
-        ax.set_xlabel('Measured time (s)', fontsize=12)
-        ax.set_ylabel('Predicted time (s)', fontsize=12)
+        ax.set_xlabel('Measured time (s)', fontsize=15)
+        ax.set_ylabel('Predicted time (s)', fontsize=15)
         ax.set_title(f'{name}\n$a = {a_exp:.2f}$, $b = {b_exp:.2f}$, $R^2 = {r2:.4f}$',
-                     fontsize=12)
-        ax.legend(fontsize=12)
+                     fontsize=15)
+        ax.legend(fontsize=15)
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
@@ -301,19 +301,19 @@ def plot_algorithm_comparison():
 
             # Place labels
             ax.text(neurons[max_neuron_idx] * 1.08, y_ff,
-                    f'$N_l$={int(n_lay)}', fontsize=11, color=colors['FF'],
+                    f'$N_l$={int(n_lay)}', fontsize=14, color=colors['FF'],
                     verticalalignment='center', fontweight='bold')
             ax.text(neurons[max_neuron_idx] * 1.08, y_bp,
-                    f'$N_l$={int(n_lay)}', fontsize=11, color=colors['BP'],
+                    f'$N_l$={int(n_lay)}', fontsize=14, color=colors['BP'],
                     verticalalignment='center', fontweight='bold')
             ax.text(neurons[max_neuron_idx] * 1.08, y_fd,
-                    f'$N_l$={int(n_lay)}', fontsize=11, color=colors['FD'],
+                    f'$N_l$={int(n_lay)}', fontsize=14, color=colors['FD'],
                     verticalalignment='center', fontweight='bold')
 
-    ax.set_xlabel('$N_{\\text{neuron}}$ (neurons per layer)', fontsize=12)
-    ax.set_ylabel('Computation Time (seconds)', fontsize=12)
+    ax.set_xlabel('$N_{\\text{neuron}}$ (neurons per layer)', fontsize=15)
+    ax.set_ylabel('Computation Time (seconds)', fontsize=15)
     ax.set_title('Algorithm Comparison: Computation Time vs Network Size', fontsize=14)
-    ax.legend(fontsize=12, loc='upper left')
+    ax.legend(fontsize=15, loc='upper left')
     ax.grid(True, alpha=0.3)
 
     # Extend x-axis to the right for label space
@@ -322,7 +322,7 @@ def plot_algorithm_comparison():
 
     # Add note about L
     ax.text(0.98, 0.02, '$N_l = N_{\\text{layer}}$ (number of hidden layers)',
-            transform=ax.transAxes, fontsize=12, verticalalignment='bottom',
+            transform=ax.transAxes, fontsize=15, verticalalignment='bottom',
             horizontalalignment='right', style='italic', color='black')
 
     plt.tight_layout()
